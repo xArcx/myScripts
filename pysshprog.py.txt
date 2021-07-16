@@ -1,0 +1,67 @@
+import threading
+import paramiko
+import subprocess
+import sys
+import select
+import os
+
+ip = input("Enter the client IP address: ")
+user = input("Enter the client machine Username: ")
+passwd = input("Enter the client machine Password: ")
+
+cmd_list=['touch Machine_Stats.txt\n','lscpu | grep CPU >>Machine_Stats.txt\n','free -m >>Machine_Stats.txt\n','sudo fdisk -l | grep Disk >>Machine_Stats.txt\n','cat Machine_Stats.txt\n']
+
+
+client = paramiko.SSHClient()
+client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+client.connect(ip, username=user, password=passwd)
+
+print ("SSH connection established to %s" %ip)
+
+remote_conn = client.invoke_shell()
+print ("Interactive SSH session established")
+output = remote_conn.recv(1000)
+print (output)
+
+
+for command in cmd_list:
+            # print command
+            print ("%s@remotehost> " %user + command)
+
+           
+            #The stdin is a write-only file which can be used for commands requiring input
+            #The stdout file give the output of the command
+            #The stderr gives the errors returned on executing the command. Will be empty if there is no error
+            # now exec commands
+            stdin, stdout, stderr = client.exec_command(command)
+           
+            # TODO() : if an error is thrown, stop further rules and revert back changes
+            # Wait for the command to terminate
+            while not stdout.channel.exit_status_ready():
+                # Only print data if there is data to read in the channel
+                if stdout.channel.recv_ready():
+                    rl, wl, xl = select.select([ stdout.channel ], [ ], [ ], 0.0)
+                    if len(rl) > 0:
+                        tmp = stdout.channel.recv(1024)
+                        output = tmp.decode()
+                        print (output)
+
+ftp_client=client.open_sftp()
+#sftp.get(path + '/' + file, os.path.join('E:\InsightImport\CSV_EXTRACT', file))
+ftp_client.get('Machine_Stats.txt','C:/Users/Home/Desktop/Scripts/Machine_Stats.txt')
+ftp_client.close()
+
+# Close SSH connection
+client.close()
+
+
+#while True:
+#    try:
+#        command = raw_input("root@localhost> ")
+#        ssh_session = client.get_transport().open_session()
+#        if ssh_session.active:
+#            ssh_session.exec_command(command)
+#            print (ssh_session.recv(1024))
+#    except:
+#        print ("Keyboard Interuppt, quit session")
+#        sys.exit()
